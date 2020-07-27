@@ -104,7 +104,8 @@ if uploadfile:
         return trasf_x, trasf_medio, df_fft, tempo
 
     if test == 'mean':
-        divisore = int(st.text_input('Calibration (1 -> 60kHz, 2->30kHz, 4->15kHz)', 0))
+        divisore = float(st.text_input('Calibration (1->60kHz, 2->30kHz, 4->15kHz, 0.5->120KHz, 0.25->240KHz, 0.2->313KHz )', 0))
+
         if divisore != 0:
             trasf_x, trasf_medio, df_fft, tempo =  fft_func(files)
 
@@ -114,11 +115,9 @@ if uploadfile:
             # # # ██      ██         ██
             # # # ██      ██         ██
 
-            st.write('qui')
-
             # #######################################################
             p = figure(title='FFT estimate', x_axis_label='Hz', y_axis_label='')
-            p.line(trasf_x, trasf_medio, legend='Trend', line_width=2)
+            p.line(trasf_x, trasf_medio, line_width=2)
             st.bokeh_chart(p, use_container_width=True)
             # #######################################################
 
@@ -134,7 +133,7 @@ if uploadfile:
             fft_medio = df_fft.mean(axis=1)
 
             step_new = 0.9536070185476565/divisore
-
+            # st.write(step_new*len(fft_x))
             #######################################################
             #allineamento
             fft_x = np.linspace(0, step_new*len(fft_x), len(fft_x))
@@ -142,12 +141,12 @@ if uploadfile:
 
             # #######################################################
             p1 = figure(title='frequenzy trace', x_axis_label='Hz', y_axis_label='')
-            p1.line(fft_x, (fft_medio - np.mean(fft_medio))*1000, legend='Trend', line_width=2)
+            p1.line(fft_x, (fft_medio - np.mean(fft_medio))*1000, line_width=2)
             st.bokeh_chart(p1, use_container_width=True)
 
             timei = st.slider('Select the time region', 0, len(tempo), 0)
             p2 = figure(title='time trace', x_axis_label='sec', y_axis_label='V', x_range=(0,0.1))
-            p2.line(tempo[timei]['time (s)'].to_numpy(), tempo[timei]['volt'].to_numpy(), legend='Trend', line_width=2)
+            p2.line(tempo[timei]['time (s)'].to_numpy(), tempo[timei]['volt'].to_numpy(), line_width=2)
             st.bokeh_chart(p2, use_container_width=True)
             # #######################################################
 
@@ -167,7 +166,12 @@ if uploadfile:
             files[i]['Time (s)'] = files[i]['Time (s)'] + files[i-1]['Time (s)'].max()
 
         p = figure(title='', x_axis_label='Time (s)', y_axis_label='V')
+        ave = []
         for file in files:
-            p.line(files[file]['Time (s)'], files[file]['1 (VOLT)'].ewm(span = 5).mean(), legend='Trend', line_width=2)
-            p.line((files[file]['Time (s)'].iloc[0], files[file]['Time (s)'].iloc[0]), (0, 1), legend='Trend', line_width=2, color = 'red')
+            ave.append(files[file]['1 (VOLT)'].mean())
+        ave_ave = np.array(ave).mean()
+        st.write(ave_ave)
+        for file in files:
+            p.line(files[file]['Time (s)'], files[file]['1 (VOLT)'].ewm(span = 5).mean(), line_width=2)
+            p.line((files[file]['Time (s)'].iloc[0], files[file]['Time (s)'].iloc[0]), (0, ave_ave+ave_ave*0.3), line_width=2, color = 'red')
         st.bokeh_chart(p, use_container_width=True)
