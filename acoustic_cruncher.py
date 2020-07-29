@@ -24,6 +24,7 @@ def load_func(uploadfile):
         files[i] = pd.read_csv(zf.open(name))
     return files
 
+fft = st.sidebar.radio('Calculate the spectrum:', [False, True])
 uploadfile = st.file_uploader('load zip file here', 'zip')
 if uploadfile:
     files = load_func(uploadfile)
@@ -79,7 +80,7 @@ if uploadfile:
     ##########################################################################################
 
     @st.cache()
-    def fft_func(files):
+    def fft_func(files, fft):
         df_time = pd.DataFrame()
         tempo = dict()
         df_fft = pd.DataFrame()
@@ -95,19 +96,22 @@ if uploadfile:
                 df_fft[j] = freq
                 j = j + 1
 
-        df_trasf_y = pd.DataFrame()
-        trasf_x = fftt(tempo[0]['time (s)'].to_numpy(), tempo[0]['volt'].to_numpy()).trasformata()[0]
+        trasf_x, trasf_medio = 0, 0
 
-        for i in range(len(tempo)):
-            df_trasf_y[i] = fftt(tempo[i]['time (s)'].to_numpy(), tempo[i]['volt'].to_numpy()).trasformata()[1]
-        trasf_medio = df_trasf_y.mean(axis=1)
+        if fft:
+            df_trasf_y = pd.DataFrame()
+            trasf_x = fftt(tempo[0]['time (s)'].to_numpy(), tempo[0]['volt'].to_numpy()).trasformata()[0]
+            for i in range(len(tempo)):
+                df_trasf_y[i] = fftt(tempo[i]['time (s)'].to_numpy(), tempo[i]['volt'].to_numpy()).trasformata()[1]
+            trasf_medio = df_trasf_y.mean(axis=1)
+
         return trasf_x, trasf_medio, df_fft, tempo
 
     if test == 'mean':
         divisore = float(st.text_input('Calibration (1->60kHz, 2->30kHz, 4->15kHz, 0.5->120KHz, 0.25->240KHz, 0.2->313KHz )', 0))
 
         if divisore != 0:
-            trasf_x, trasf_medio, df_fft, tempo =  fft_func(files)
+            trasf_x, trasf_medio, df_fft, tempo =  fft_func(files, fft)
 
             # # # ███████ ███████ ████████
             # # # ██      ██         ██
@@ -115,11 +119,12 @@ if uploadfile:
             # # # ██      ██         ██
             # # # ██      ██         ██
 
-            # #######################################################
-            p = figure(title='FFT estimate', x_axis_label='Hz', y_axis_label='')
-            p.line(trasf_x, trasf_medio, line_width=2)
-            st.bokeh_chart(p, use_container_width=True)
-            # #######################################################
+            if fft:
+                # #######################################################
+                p = figure(title='FFT estimate', x_axis_label='Hz', y_axis_label='')
+                p.line(trasf_x, trasf_medio, line_width=2)
+                st.bokeh_chart(p, use_container_width=True)
+                # #######################################################
 
 
             # ███████ ██████  ███████  ██████  ██    ██ ███████ ███    ██  ██████ ██    ██
@@ -129,20 +134,23 @@ if uploadfile:
             # ██      ██   ██ ███████  ██████   ██████  ███████ ██   ████  ██████    ██
             #                             ▀▀
 
-            fft_x = np.linspace(0, trasf_x[-1], df_fft.shape[0])
             fft_medio = df_fft.mean(axis=1)
-
             step_new = 0.9536070185476565/divisore
-            # st.write(step_new*len(fft_x))
             #######################################################
             #allineamento
-            fft_x = np.linspace(0, step_new*len(fft_x), len(fft_x))
+            fft_x = np.linspace(0, step_new*df_fft.shape[0], df_fft.shape[0])
             #######################################################
 
             # #######################################################
-            p1 = figure(title='frequenzy trace', x_axis_label='Hz', y_axis_label='')
-            p1.line(fft_x, (fft_medio - np.mean(fft_medio))*1000, line_width=2)
+            p1 = figure(title='frequenzy trace (linear scale)', x_axis_label='Hz', y_axis_label='')
+            p1.line(fft_x, (fft_medio - np.mean(fft_medio)), line_width=2)
             st.bokeh_chart(p1, use_container_width=True)
+
+            fft_log = np.log(fft_medio)
+
+            p3 = figure(title='frequenzy trace (logaritmic scale)', x_axis_label='Hz', y_axis_label='')
+            p3.line(fft_x, (fft_log - np.mean(fft_log)), line_width=2)
+            st.bokeh_chart(p3, use_container_width=True)
 
             timei = st.slider('Select the time region', 0, len(tempo), 0)
             p2 = figure(title='time trace', x_axis_label='sec', y_axis_label='V', x_range=(0,0.1))
