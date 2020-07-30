@@ -6,7 +6,7 @@ from AJ_analisi_fotoacustica import fotoacustica as fa
 
 import streamlit as st
 import zipfile
-
+from scipy.optimize import curve_fit
 from bokeh.plotting import figure
 
 # ███████ ██ ██      ███████
@@ -25,6 +25,11 @@ def load_func(uploadfile):
     return files
 
 fft = st.sidebar.radio('Calculate the spectrum:', [False, True])
+
+
+pump = int(st.text_input('pump frquenze (Hz)',10000))
+num_rep = int(st.text_input('number of armonics to read', 10))
+
 uploadfile = st.file_uploader('load zip file here', 'zip')
 if uploadfile:
     files = load_func(uploadfile)
@@ -148,8 +153,51 @@ if uploadfile:
 
             fft_log = np.log(fft_medio)
 
+            # yline = [2.7025,   0.18433]
+            # xline = [30000.95, 150000]
+
+            # yline = [2.1578,   0.6255]
+            # xline = [6000, 19000]
+            #
+            #
+            # m = (yline[0] - yline[1])/(xline[0] - xline[1])
+            # st.write(m)
+
+            df_fft = pd.DataFrame(fft_x)
+            df_fft.columns = ['x']
+            df_fft['y'] = fft_log - np.mean(fft_log)
+
+
+            x_peaks = []
+            y_peaks = []
+            for rep in range(1,num_rep):
+                x_temp = []
+                y_temp = []
+                for i in range(10):
+                    x_temp.append(df_fft['x'].iloc[int(pump*rep/step_new)-5+i])
+                    y_temp.append(df_fft['y'].iloc[int(pump*rep/step_new)-5+i])
+                df_temp = pd.DataFrame(x_temp)
+                df_temp.columns = ['x']
+                df_temp['y'] = y_temp
+                x_peaks.append(df_temp[df_temp['y'] == df_temp['y'].max()].iloc[0]['x'])
+                y_peaks.append(df_temp[df_temp['y'] == df_temp['y'].max()].iloc[0]['y'])
+            # st.write(x_peaks, y_peaks)
+            x_peaks = np.array(x_peaks)
+            y_peaks = np.array(y_peaks)
+
+            def retta(x, p0, p1):
+                return p0*x + p1
+
+            par1, par2 = curve_fit(retta, x_peaks, y_peaks)
+            yfit = retta(x_peaks, par1[0], par1[1])
+            m = par1[0]
+            q = par1[1]
+
+            st.write('m:', m)
+
             p3 = figure(title='frequenzy trace (logaritmic scale)', x_axis_label='Hz', y_axis_label='')
             p3.line(fft_x, (fft_log - np.mean(fft_log)), line_width=2)
+            p3.line(x_peaks, yfit, line_width=2, color='red')
             st.bokeh_chart(p3, use_container_width=True)
 
             timei = st.slider('Select the time region', 0, len(tempo), 0)
