@@ -17,7 +17,7 @@ from bokeh.palettes import all_palettes
 # ██      ██ ██      ██
 # ██      ██ ███████ ███████
 
-@st.cache()
+@st.cache(allow_output_mutation=True)
 def load_func(uploadfile):
     zf = zipfile.ZipFile(uploadfile)
 
@@ -56,6 +56,9 @@ if uploadfile:
     ##########################################################################################
 
     test = st.selectbox('type of analysis', ('', 'test', 'mean', 'lockin', 'compare'))
+    if test == 'compare':
+        scale_logy = st.radio('scale Y:', ['linear', 'log'])
+        scale_logx = st.radio('scale X:', ['linear', 'log'])
     stop_time_correct = 64516
 
     @st.cache()
@@ -164,54 +167,51 @@ if uploadfile:
             df_to_save['y'] = (fft_medio - np.mean(fft_medio)) - np.min(fft_medio - np.mean(fft_medio))
             download_file(df_to_save, down_file+' Linear scale')
 
-            fft_log = np.log(fft_medio)
-
-            # yline = [2.7025,   0.18433]
-            # xline = [30000.95, 150000]
-
-            # yline = [2.1578,   0.6255]
-            # xline = [6000, 19000]
-            #
-            #
-            # m = (yline[0] - yline[1])/(xline[0] - xline[1])
-            # st.write(m)
-
             df_fft = pd.DataFrame(fft_x)
             df_fft.columns = ['x']
-            df_fft['y'] = fft_log - np.mean(fft_log) - np.min(fft_log - np.mean(fft_log))
-
+            df_fft['y'] = fft_medio
 
             x_peaks = []
             y_peaks = []
+            step = df_fft['x'].loc[1]
+            xcoord = int(round((pump/1000)/step))
             for rep in range(1,num_rep):
                 x_temp = []
                 y_temp = []
-                for i in range(10):
-                    x_temp.append(df_fft['x'].iloc[int(pump*rep/step_new)-5+i])
-                    y_temp.append(df_fft['y'].iloc[int(pump*rep/step_new)-5+i])
+                for j in range(30):
+                    x_temp.append(df_fft['x'].iloc[int(xcoord*rep)-15+j])
+                    y_temp.append(df_fft['y'].iloc[int(xcoord*rep)-15+j])
                 df_temp = pd.DataFrame(x_temp)
                 df_temp.columns = ['x']
                 df_temp['y'] = y_temp
                 x_peaks.append(df_temp[df_temp['y'] == df_temp['y'].max()].iloc[0]['x'])
                 y_peaks.append(df_temp[df_temp['y'] == df_temp['y'].max()].iloc[0]['y'])
-            # st.write(x_peaks, y_peaks)
             x_peaks = np.array(x_peaks)
             y_peaks = np.array(y_peaks)
 
-            def retta(x, p0, p1):
-                return p0*x + p1
+            df_spec = pd.DataFrame(df_fft['x'])
+            df_spec.columns = ['x']
+            df_spec['y'] = df_fft['y']
+            df_peaks = np.zeros_like(df_spec)
+            df_peaks = pd.DataFrame(df_peaks)
+            df_peaks.columns = ['x','y']
+            df_peaks['x'] = df_spec['x']
 
-            par1, par2 = curve_fit(retta, x_peaks, y_peaks)
-            yfit = retta(x_peaks, par1[0], par1[1])
-            m = par1[0]
-            q = par1[1]
+            for peak in range(len(x_peaks)):
+                ind_peak = df_spec[df_spec['x'] == x_peaks[peak]].index.tolist()[0]
+                df_peaks.iloc[ind_peak]['y'] = y_peaks[peak]
+            trasf_peaks = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+            p4 = figure(title='pulse', x_axis_label='sec', y_axis_label='')
 
-            st.write('m:', m)
-
-            p3 = figure(title='frequenzy trace (logaritmic scale)', x_axis_label='kHz', y_axis_label='')
-            p3.line(fft_x, (fft_log - np.mean(fft_log)) - np.min(fft_log - np.mean(fft_log)), line_width=2)
-            # p3.line(x_peaks, yfit, line_width=2, color='red')
+            p3 = figure(title='frequenzy trace (logaritmic scale)', x_axis_label='kHz', y_axis_label='', y_axis_type = 'log')
+            fft_log = np.log(fft_medio + np.min(fft_medio) + 1e-7)
+            # p3.line(fft_x, (fft_log - np.mean(fft_log)) - np.min(fft_log - np.mean(fft_log)), line_width=2)
+            p3.line(fft_x, (fft_medio - np.min(fft_medio) + 1e-7), line_width=2)
             st.bokeh_chart(p3, use_container_width=True)
+
+            p4.line(trasf_peaks[0], trasf_peaks[1], line_width=2)
+            st.bokeh_chart(p4, use_container_width=True)
+
 
             df_to_save = pd.DataFrame()
             df_to_save['x'] = fft_x
@@ -252,12 +252,14 @@ if uploadfile:
 
     if test == 'compare':
         colori = all_palettes['Category20'][20]
-        p3 = figure(title='compare frequenzy data', x_axis_label='Hz', y_axis_label='')#, x_axis_type = 'log')
-        p4 = figure(title='compare frequenzy data normalized by pump frequenzy', x_axis_label='Hz/Hz', y_axis_label='')#, x_axis_type = 'log')
+        p3 = figure(title='compare frequenzy data', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
+        p5 = figure(title='compare frequenzy data', x_axis_label='kHz', y_axis_label='')
+        p6 = figure(title='compare time data', x_axis_label='sec', y_axis_label='')
+        p4 = figure(title='compare frequenzy data normalized by pump frequenzy', x_axis_label='Hz/Hz', y_axis_label='',  x_axis_type = scale_logx, y_axis_type = scale_logy)
 
         def name_to_num(text):
             x = text.split('.')
-            return int(x[0])
+            return float(x[0])/1000
         pump_list = list(map(name_to_num, files_names))
 
         for i, file in enumerate(files):
@@ -265,22 +267,19 @@ if uploadfile:
             x_peaks = []
             y_peaks = []
 
-            files[file]['x'] = files[file]['x']/1000
-            pump_list[i] = pump_list[i]/1000
+            files_x = files[file]['x'].copy()/1000
+            files_y = files[file]['y'].copy()
+            files_y = files_y - np.min(files_y) + 1e-7
 
-            # files[file]['x'] = np.log(files[file]['x'])
-            # pump_list[i] = np.log(pump_list[i])
-
-
-            step = files[file]['x'].loc[1]
+            step = files_x.loc[1]
             xcoord = int(round(pump_list[i]/step))
 
             for rep in range(1,num_rep):
                 x_temp = []
                 y_temp = []
                 for j in range(30):
-                    x_temp.append(files[file]['x'].iloc[int(xcoord*rep)-15+j])
-                    y_temp.append(files[file]['y'].iloc[int(xcoord*rep)-15+j])
+                    x_temp.append(files_x.iloc[int(xcoord*rep)-15+j])
+                    y_temp.append(files_y.iloc[int(xcoord*rep)-15+j])
                 df_temp = pd.DataFrame(x_temp)
                 df_temp.columns = ['x']
                 df_temp['y'] = y_temp
@@ -289,25 +288,35 @@ if uploadfile:
             x_peaks = np.array(x_peaks)
             y_peaks = np.array(y_peaks)
 
-            # x_peaks_story = np.zeros(3*len(x_peaks))
-            # y_peaks_story = np.zeros(3*len(y_peaks))
-            # for j in range(len(x_peaks)):
-            #     x_peaks_story[0+3*j] = x_peaks[j]
-            #     x_peaks_story[1+3*j] = x_peaks[j]
-            #     x_peaks_story[2+3*j] = x_peaks[j]
-            #
-            #     y_peaks_story[0+3*j] = np.min(y_peaks)
-            #     y_peaks_story[1+3*j] = y_peaks[j]
-            #     y_peaks_story[2+3*j] = np.min(y_peaks)
+            df_spec = pd.DataFrame(files_x)
+            df_spec.columns = ['x']
+            df_spec['y'] = files_y
 
-            p3.line(files[file]['x'], files[file]['y'], line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
-            # p3.line(x_peaks_story, y_peaks_story, line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
+            df_peaks = np.zeros_like(df_spec)
+            df_peaks = pd.DataFrame(df_peaks)
+            df_peaks.columns = ['x','y']
+            df_peaks['x'] = df_spec['x']
+
+            for peak in range(len(x_peaks)):
+                ind_peak = df_spec[df_spec['x'] == x_peaks[peak]].index.tolist()[0]
+                df_peaks.iloc[ind_peak]['y'] = y_peaks[peak]
+
+            trasf_peaks = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+
+            p3.line(files_x, files_y, line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
             p3.line(x_peaks, y_peaks, line_width=2, color = colori[i], legend_label=str(pump_list[i]))
-
             p4.line(x_peaks/pump_list[i], y_peaks, line_width=2, color = colori[i], legend_label=str(pump_list[i]))
+            p5.line(df_peaks['x'], df_peaks['y'], line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
+            p6.line(trasf_peaks[0], trasf_peaks[1], line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
 
         p3.legend.click_policy="hide"
         st.bokeh_chart(p3, use_container_width=True)
 
         p4.legend.click_policy="hide"
         st.bokeh_chart(p4, use_container_width=True)
+
+        p5.legend.click_policy="hide"
+        st.bokeh_chart(p5, use_container_width=True)
+
+        p6.legend.click_policy="hide"
+        st.bokeh_chart(p6, use_container_width=True)
