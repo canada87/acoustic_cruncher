@@ -200,7 +200,15 @@ if uploadfile:
             for peak in range(len(x_peaks)):
                 ind_peak = df_spec[df_spec['x'] == x_peaks[peak]].index.tolist()[0]
                 df_peaks.iloc[ind_peak]['y'] = y_peaks[peak]
-            trasf_peaks = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+
+            # df_peaks_neg = np.zeros_like(df_spec)
+            # df_peaks_neg = pd.DataFrame(df_peaks_neg)
+            # df_peaks_neg['x'] = df_peaks['x']*(-1)
+            # df_peaks_neg['y'] = df_peaks['y']
+            # df_peaks = pd.concat([df_peaks_neg, df_peaks], axis = 1)
+
+            trasf_peaksx, trasf_peaksy, trasf_tot_peaksx, trasf_tot_peaksy =  fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+            trasf_peaks = trasf_tot_peaksx, trasf_tot_peaksy
             p4 = figure(title='pulse', x_axis_label='sec', y_axis_label='')
 
             p3 = figure(title='frequenzy trace (logaritmic scale)', x_axis_label='kHz', y_axis_label='', y_axis_type = 'log')
@@ -211,7 +219,6 @@ if uploadfile:
 
             p4.line(trasf_peaks[0], trasf_peaks[1], line_width=2)
             st.bokeh_chart(p4, use_container_width=True)
-
 
             df_to_save = pd.DataFrame()
             df_to_save['x'] = fft_x
@@ -249,6 +256,14 @@ if uploadfile:
             p.line(files[file]['Time (s)'], files[file]['1 (VOLT)'].ewm(span = 5).mean(), line_width=2)
             p.line((files[file]['Time (s)'].iloc[0], files[file]['Time (s)'].iloc[0]), (0, ave_ave+ave_ave*0.3), line_width=2, color = 'red')
         st.bokeh_chart(p, use_container_width=True)
+
+
+        #  ██████  ██████  ███    ███ ██████   █████  ██████  ███████
+        # ██      ██    ██ ████  ████ ██   ██ ██   ██ ██   ██ ██
+        # ██      ██    ██ ██ ████ ██ ██████  ███████ ██████  █████
+        # ██      ██    ██ ██  ██  ██ ██      ██   ██ ██   ██ ██
+        #  ██████  ██████  ██      ██ ██      ██   ██ ██   ██ ███████
+
 
     if test == 'compare':
         colori = all_palettes['Category20'][20]
@@ -301,7 +316,8 @@ if uploadfile:
                 ind_peak = df_spec[df_spec['x'] == x_peaks[peak]].index.tolist()[0]
                 df_peaks.iloc[ind_peak]['y'] = y_peaks[peak]
 
-            trasf_peaks = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+            trasf_peaksx, trasf_peaksy, trasf_tot_peaksx, trasf_tot_peaksy = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+            trasf_peaks = trasf_tot_peaksx, trasf_tot_peaksy
 
             p3.line(files_x, files_y, line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
             p3.line(x_peaks, y_peaks, line_width=2, color = colori[i], legend_label=str(pump_list[i]))
