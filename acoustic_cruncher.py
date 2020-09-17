@@ -7,9 +7,9 @@ from AJ_analisi_fotoacustica import fotoacustica as fa
 
 import streamlit as st
 import zipfile
-from scipy.optimize import curve_fit
 from bokeh.plotting import figure
 from bokeh.palettes import all_palettes
+from scipy.interpolate import interp1d
 
 # ███████ ██ ██      ███████
 # ██      ██ ██      ██
@@ -56,7 +56,7 @@ if uploadfile:
     ##########################################################################################
 
     test = st.selectbox('type of analysis', ('', 'test', 'mean', 'lockin', 'compare'))
-    if test == 'compare':
+    if test == 'compare' or test == 'mean':
         scale_logy = st.radio('scale Y:', ['linear', 'log'])
         scale_logx = st.radio('scale X:', ['linear', 'log'])
     stop_time_correct = 64516
@@ -159,9 +159,11 @@ if uploadfile:
             #######################################################
 
             # #######################################################
-            p1 = figure(title='frequenzy trace (linear scale)', x_axis_label='kHz', y_axis_label='')
-            p1.line(fft_x, (fft_medio - np.mean(fft_medio)) - np.min(fft_medio - np.mean(fft_medio)), line_width=2)
+            p1 = figure(title='frequenzy trace (linear scale)', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
+            p1.line(fft_x, (fft_medio - np.mean(fft_medio)) - np.min(fft_medio - np.mean(fft_medio) + 1e-7), line_width=2)
             st.bokeh_chart(p1, use_container_width=True)
+
+
             df_to_save = pd.DataFrame()
             df_to_save['x'] = fft_x
             df_to_save['y'] = (fft_medio - np.mean(fft_medio)) - np.min(fft_medio - np.mean(fft_medio))
@@ -201,29 +203,34 @@ if uploadfile:
                 ind_peak = df_spec[df_spec['x'] == x_peaks[peak]].index.tolist()[0]
                 df_peaks.iloc[ind_peak]['y'] = y_peaks[peak]
 
-            # df_peaks_neg = np.zeros_like(df_spec)
-            # df_peaks_neg = pd.DataFrame(df_peaks_neg)
-            # df_peaks_neg['x'] = df_peaks['x']*(-1)
-            # df_peaks_neg['y'] = df_peaks['y']
-            # df_peaks = pd.concat([df_peaks_neg, df_peaks], axis = 1)
-
             trasf_peaksx, trasf_peaksy, trasf_tot_peaksx, trasf_tot_peaksy =  fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
             trasf_peaks = trasf_tot_peaksx, trasf_tot_peaksy
-            p4 = figure(title='pulse', x_axis_label='sec', y_axis_label='')
 
-            p3 = figure(title='frequenzy trace (logaritmic scale)', x_axis_label='kHz', y_axis_label='', y_axis_type = 'log')
             fft_log = np.log(fft_medio + np.min(fft_medio) + 1e-7)
-            # p3.line(fft_x, (fft_log - np.mean(fft_log)) - np.min(fft_log - np.mean(fft_log)), line_width=2)
-            p3.line(fft_x, (fft_medio - np.min(fft_medio) + 1e-7), line_width=2)
-            st.bokeh_chart(p3, use_container_width=True)
-
-            p4.line(trasf_peaks[0], trasf_peaks[1], line_width=2)
-            st.bokeh_chart(p4, use_container_width=True)
-
             df_to_save = pd.DataFrame()
             df_to_save['x'] = fft_x
             df_to_save['y'] = (fft_log - np.mean(fft_log)) - np.min(fft_log - np.mean(fft_log))
             download_file(df_to_save, down_file+' Log scale')
+
+            p3 = figure(title='Peaks', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
+            p3.line(df_peaks['x'].to_numpy(), df_peaks['y'].to_numpy(), line_width=2, legend_label='peaks')
+            p3.line(x_peaks, y_peaks, line_width=2, legend_label='trend')
+            p3.legend.click_policy="hide"
+            st.bokeh_chart(p3, use_container_width=True)
+
+            p4 = figure(title='pulse', x_axis_label='sec', y_axis_label='')
+            p4.line(trasf_peaks[0], trasf_peaks[1], line_width=2)
+            st.bokeh_chart(p4, use_container_width=True)
+
+            f = interp1d(x_peaks, y_peaks)
+            x_peaks_continued = np.linspace(x_peaks[0], x_peaks[-1], num=fft_x.shape[0], endpoint=True)
+            y_peaks_continued = f(x_peaks_continued)
+            _, _, trasf_cint_peaksx, trasf_cont_peaksy = fftt(x_peaks_continued*1000, y_peaks_continued).trasformata()
+            trasf_cont_peaks = trasf_cint_peaksx, trasf_cont_peaksy
+
+            p7 = figure(title='back transform trend', x_axis_label='sec', y_axis_label='')
+            p7.line(trasf_cont_peaks[0], trasf_cont_peaks[1], line_width=2)
+            st.bokeh_chart(p7, use_container_width=True)
 
             timei = st.slider('Select the time region', 0, len(tempo), 0)
             p2 = figure(title='time trace', x_axis_label='sec', y_axis_label='V', x_range=(0,0.1))
@@ -269,7 +276,8 @@ if uploadfile:
         colori = all_palettes['Category20'][20]
         p3 = figure(title='compare frequenzy data', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
         p5 = figure(title='compare frequenzy data', x_axis_label='kHz', y_axis_label='')
-        p6 = figure(title='compare time data', x_axis_label='sec', y_axis_label='')
+        p6 = figure(title='compare back transform pulses', x_axis_label='sec', y_axis_label='')
+        p7 = figure(title='compare back transform trend', x_axis_label='sec', y_axis_label='')
         p4 = figure(title='compare frequenzy data normalized by pump frequenzy', x_axis_label='Hz/Hz', y_axis_label='',  x_axis_type = scale_logx, y_axis_type = scale_logy)
 
         def name_to_num(text):
@@ -316,14 +324,22 @@ if uploadfile:
                 ind_peak = df_spec[df_spec['x'] == x_peaks[peak]].index.tolist()[0]
                 df_peaks.iloc[ind_peak]['y'] = y_peaks[peak]
 
-            trasf_peaksx, trasf_peaksy, trasf_tot_peaksx, trasf_tot_peaksy = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
+            _, _, trasf_tot_peaksx, trasf_tot_peaksy = fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
             trasf_peaks = trasf_tot_peaksx, trasf_tot_peaksy
+
+            f = interp1d(x_peaks, y_peaks)
+            x_peaks_continued = np.linspace(x_peaks[0], x_peaks[-1], num=files_x.shape[0], endpoint=True)
+            y_peaks_continued = f(x_peaks_continued)
+
+            _, _, trasf_cint_peaksx, trasf_cont_peaksy = fftt(x_peaks_continued*1000, y_peaks_continued).trasformata()
+            trasf_cont_peaks = trasf_cint_peaksx, trasf_cont_peaksy
 
             p3.line(files_x, files_y, line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
             p3.line(x_peaks, y_peaks, line_width=2, color = colori[i], legend_label=str(pump_list[i]))
             p4.line(x_peaks/pump_list[i], y_peaks, line_width=2, color = colori[i], legend_label=str(pump_list[i]))
             p5.line(df_peaks['x'], df_peaks['y'], line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
             p6.line(trasf_peaks[0], trasf_peaks[1], line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
+            p7.line(trasf_cont_peaks[0], trasf_cont_peaks[1], line_width=2, color = colori[i], legend_label='spectr '+str(pump_list[i]))
 
         p3.legend.click_policy="hide"
         st.bokeh_chart(p3, use_container_width=True)
@@ -336,3 +352,6 @@ if uploadfile:
 
         p6.legend.click_policy="hide"
         st.bokeh_chart(p6, use_container_width=True)
+
+        p7.legend.click_policy="hide"
+        st.bokeh_chart(p7, use_container_width=True)
