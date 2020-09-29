@@ -11,6 +11,8 @@ from bokeh.plotting import figure
 from bokeh.palettes import all_palettes
 from scipy.interpolate import interp1d
 
+from scipy import integrate
+
 # ███████ ██ ██      ███████
 # ██      ██ ██      ██
 # █████   ██ ██      █████
@@ -24,6 +26,16 @@ def load_func(uploadfile):
     files = dict()
     for i, name in enumerate(zf.namelist()):
         files[i] = pd.read_csv(zf.open(name))
+        if name == 'spectrum.txt':
+            files[i] = files[i][16:-1]
+            colonna = files[i].columns.tolist()[0]
+            files[i]['x'] = files[i][colonna].str.split(expand = True)[0]
+            files[i]['y'] = files[i][colonna].str.split(expand = True)[1]
+            files[i] = files[i].drop([colonna], axis = 1)
+            files[i] = files[i].astype({'x': 'float', 'y':'float'})
+
+# self.data_row['upload year'] = self.data_row['DOI'].str.split(".", expand = True)[3]
+
     return files, zf.namelist()
 
 def download_file(data, filename):
@@ -33,7 +45,14 @@ def download_file(data, filename):
     href = f'<a href="data:file/csv;base64,{b64}" download="{filename}.csv">'+testo+'</a>'
     st.markdown(href, unsafe_allow_html=True)
 
+colori = all_palettes['Category20'][20]
+
 fft = st.sidebar.radio('Calculate the spectrum:', [False, True])
+num_spec = int(st.sidebar.text_input('num of spectrum',1))
+second_filter = int(st.sidebar.text_input('second filter',700))
+second_filter2 = int(st.sidebar.text_input('second filter',810))
+
+
 
 down_file = st.text_input('Name on download file', 'sample')
 pump = int(st.text_input('pump frquenze (Hz)',10000))
@@ -55,7 +74,7 @@ if uploadfile:
     ##########################################################################################
     ##########################################################################################
 
-    test = st.selectbox('type of analysis', ('', 'test', 'mean', 'lockin', 'compare'))
+    test = st.selectbox('type of analysis', ('', 'test', 'mean', 'lockin', 'compare', 'spectrum'))
     if test == 'compare' or test == 'mean':
         scale_logy = st.radio('scale Y:', ['linear', 'log'])
         scale_logx = st.radio('scale X:', ['linear', 'log'])
@@ -159,10 +178,8 @@ if uploadfile:
             #######################################################
 
             # #######################################################
-            p1 = figure(title='frequenzy trace (linear scale)', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
+            p1 = figure(title='frequenzy trace', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
             p1.line(fft_x, (fft_medio - np.mean(fft_medio)) - np.min(fft_medio - np.mean(fft_medio) + 1e-7), line_width=2)
-            st.bokeh_chart(p1, use_container_width=True)
-
 
             df_to_save = pd.DataFrame()
             df_to_save['x'] = fft_x
@@ -171,7 +188,7 @@ if uploadfile:
 
             df_fft = pd.DataFrame(fft_x)
             df_fft.columns = ['x']
-            df_fft['y'] = fft_medio
+            df_fft['y'] = (fft_medio - np.mean(fft_medio)) - np.min(fft_medio - np.mean(fft_medio) + 1e-7)
 
             x_peaks = []
             y_peaks = []
@@ -206,11 +223,9 @@ if uploadfile:
             trasf_peaksx, trasf_peaksy, trasf_tot_peaksx, trasf_tot_peaksy =  fftt(df_peaks['x'].to_numpy()*1000, df_peaks['y'].to_numpy()).trasformata()
             trasf_peaks = trasf_tot_peaksx, trasf_tot_peaksy
 
-            fft_log = np.log(fft_medio + np.min(fft_medio) + 1e-7)
-            df_to_save = pd.DataFrame()
-            df_to_save['x'] = fft_x
-            df_to_save['y'] = (fft_log - np.mean(fft_log)) - np.min(fft_log - np.mean(fft_log))
-            download_file(df_to_save, down_file+' Log scale')
+            p1.line(x_peaks, y_peaks, line_width=2, legend_label='trend')
+            p1.legend.click_policy="hide"
+            st.bokeh_chart(p1, use_container_width=True)
 
             p3 = figure(title='Peaks', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
             p3.line(df_peaks['x'].to_numpy(), df_peaks['y'].to_numpy(), line_width=2, legend_label='peaks')
@@ -273,7 +288,6 @@ if uploadfile:
 
 
     if test == 'compare':
-        colori = all_palettes['Category20'][20]
         p3 = figure(title='compare frequenzy data', x_axis_label='kHz', y_axis_label='', x_axis_type = scale_logx, y_axis_type = scale_logy)
         p5 = figure(title='compare frequenzy data', x_axis_label='kHz', y_axis_label='')
         p6 = figure(title='compare back transform pulses', x_axis_label='sec', y_axis_label='')
@@ -355,3 +369,98 @@ if uploadfile:
 
         p7.legend.click_policy="hide"
         st.bokeh_chart(p7, use_container_width=True)
+
+
+        # ███████ ██████  ███████  ██████ ████████ ██████  ██    ██ ███    ███
+        # ██      ██   ██ ██      ██         ██    ██   ██ ██    ██ ████  ████
+        # ███████ ██████  █████   ██         ██    ██████  ██    ██ ██ ████ ██
+        #      ██ ██      ██      ██         ██    ██   ██ ██    ██ ██  ██  ██
+        # ███████ ██      ███████  ██████    ██    ██   ██  ██████  ██      ██
+
+
+    if test == 'spectrum':
+        uploadfile2 = dict()
+        for i in range(num_spec):
+            uploadfile2[i] = st.file_uploader('load zip spectrum file '+str(i)+' here', 'zip')
+
+        if uploadfile2[num_spec-1]:
+
+            media_dict = dict()
+            media_vet_dict = dict()
+            media_x_dict = dict()
+            files2_dict = dict()
+            integrale_dict = dict()
+
+            for i in range(num_spec):
+                files2, files_names = load_func(uploadfile2[i])
+                media_vet = []
+
+                files2[0]['y'] = files2[0]['y'] - files2[0]['y'].mean()
+
+                for j in range(1,len(files2)):
+                    media_vet.append(files2[j]['1 (VOLT)'].mean())
+                    media = np.array(media_vet).mean()
+
+                pump_region = files2[0][files2[0]['x'] > second_filter][files2[0]['x'] < second_filter2]
+                pump_std = files2[0][files2[0]['x'] > 900][files2[0]['x'] < 1000]
+                pump_trasmitted = pump_region[pump_region['y'] > pump_std['y'].mean()+5*pump_std['y'].std()]
+
+                media_x = pump_trasmitted['x'].mean()
+                integrale = integrate.trapz(pump_trasmitted['y'], x=pump_trasmitted['x'])
+
+                media_dict[i] = media
+                media_vet_dict[i] = media_vet
+                media_x_dict[i] = media_x
+                files2_dict[i] = files2[0]
+                integrale_dict[i] = integrale
+
+            media_vet_bkg = []
+            for j in range(1,len(files)):
+                media_vet_bkg.append(files[j]['1 (VOLT)'].mean())
+                media_bkg = np.array(media_vet_bkg).mean()
+            x_bkg = [i*3 for i in range(len(media_vet_bkg))]
+
+            p1 = figure(title='Dark', x_axis_label='sec', y_axis_label='Volts')
+            p1.scatter(x_bkg, media_vet_bkg, line_width=2)
+            p1.line([x_bkg[0], x_bkg[-1]], [media_bkg,media_bkg], color = 'red', legend_label = 'average')
+            st.bokeh_chart(p1, use_container_width=True)
+
+            # p1 = figure(title='filters', x_axis_label='sec', y_axis_label='Volts')
+            # for i in range(num_spec):
+            #     p1.line(files2_dict[i]['x'], files2_dict[i]['y'], line_width=2, legend_label='filter', color = colori[i])
+            # st.bokeh_chart(p1, use_container_width=True)
+
+            def plot_spect(x_media, y_media, vet_media, spec_df, title):
+                x_tot = []
+                y_tot = []
+                y_calib_max = []
+                p1 = figure(title=title, x_axis_label='nm', y_axis_label='Volts', x_range = (second_filter, second_filter2))
+                for i in range(num_spec):
+                    p1.circle(x_media[i], y_media[i], line_width=2, legend_label='average', color = 'red', size=10)
+                    x_media2 = np.zeros_like(vet_media[i]) + x_media[i]
+                    p1.circle(x_media2, vet_media[i], line_width=2, legend_label='single scan', alpha=0.5, size = 7)
+
+                    x_tot.append(x_media[i])
+                    y_tot.append(y_media[i])
+                    y_calib_max.append(spec_df[i]['y'].max())
+                p1.line(x_tot, y_tot, line_width=2, legend_label='average line', color = 'red')
+                for i in range(num_spec):
+                    y_calib = (spec_df[i]['y']/max(y_calib_max))*max(y_tot)
+                    p1.line(spec_df[i]['x'], y_calib, line_width=2, legend_label='filter', color = colori[i])
+                p1.legend.click_policy="hide"
+                st.bokeh_chart(p1, use_container_width=True)
+
+
+            plot_spect(media_x_dict, media_dict, media_vet_dict, files2_dict, 'Absorption Spectrum')
+
+            for i in range(num_spec):
+                media_dict[i] = media_dict[i] - media_bkg
+                media_vet_dict[i] = np.array(media_vet_dict[i]) - media_bkg
+
+            plot_spect(media_x_dict, media_dict, media_vet_dict, files2_dict, 'Absorption Spectrum, dark subtraction')
+
+            for i in range(num_spec):
+                media_dict[i] = media_dict[i]/integrale_dict[i]
+                media_vet_dict[i] = np.array(media_vet_dict[i])/np.array(integrale_dict[i])
+
+            plot_spect(media_x_dict, media_dict, media_vet_dict, files2_dict, 'Absorption Spectrum normalized')
