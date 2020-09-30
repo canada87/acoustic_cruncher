@@ -425,10 +425,11 @@ if uploadfile:
             p1.line([x_bkg[0], x_bkg[-1]], [media_bkg,media_bkg], color = 'red', legend_label = 'average')
             st.bokeh_chart(p1, use_container_width=True)
 
-            # p1 = figure(title='filters', x_axis_label='sec', y_axis_label='Volts')
-            # for i in range(num_spec):
-            #     p1.line(files2_dict[i]['x'], files2_dict[i]['y'], line_width=2, legend_label='filter', color = colori[i])
-            # st.bokeh_chart(p1, use_container_width=True)
+            p1 = figure(title='filters', x_axis_label='sec', y_axis_label='Volts')
+            for i in range(num_spec):
+                p1.line(files2_dict[i]['x'], files2_dict[i]['y'], line_width=2, legend_label='filter '+str(i), color = colori[i])
+            p1.legend.click_policy="hide"
+            st.bokeh_chart(p1, use_container_width=True)
 
             def plot_spect(x_media, y_media, vet_media, spec_df, title):
                 x_tot = []
