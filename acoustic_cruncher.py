@@ -58,9 +58,25 @@ down_file = st.text_input('Name on download file', 'sample')
 pump = int(st.text_input('pump frquenze (Hz)',10000))
 num_rep = int(st.text_input('number of armonics to read', 10))
 
+if st.checkbox('Type of analysis Legend'):
+    st.markdown('**test**: test the length of all the file in the zip, for the mean analysis. It takes a zip where all the files have 3 columns: the time, the volt and the frequency.')
+    st.markdown('**mean**: plot the average frequence spectrum from all the files in the zip. It takes a zip where all the files have 3 columns: the time, the volt and the frequency.')
+    st.markdown('**lock in**: Plot the time trace from a zip file, pasting together all the time traces in the zip file. It take a zip where each file has 2 columns: the time and the volt.')
+    st.markdown('**compare**: plot together the average spectrum of different experiments. It needs a zip where each file has 2 coulms: x and y. Those file are produced by this app using the mean function and Downloading the results at the end. Each file must have as name the frequenzy of the pump in Hz.')
+    st.markdown('**spectrum**: Plot the intesity of the lock int overinpose on the spectrum of the lamp. It takes a zip with each file has 2 columns: the time and the volt. An additional file called spectrum.txt must be present and with the spectral information of the pump. The first zip to be loaded has to be the background, then the menu to load the rest appears. For the background is not required the spectrum file.')
+
+
 uploadfile = st.file_uploader('load zip file here', 'zip')
 if uploadfile:
     files, files_names = load_func(uploadfile)
+
+    for file in files:
+        new_cols = []
+        for name in files[file].columns:
+            if 'VOLT' in name:
+                name = '1 (VOLT)'
+            new_cols.append(name)
+        files[file].columns = new_cols
 
     ##########################################################################################
     ##########################################################################################
@@ -127,7 +143,7 @@ if uploadfile:
             if len(times) == stop_time_correct:
                 df_time = pd.DataFrame()
                 df_time['time (s)'] = times
-                df_time['volt'] = volt
+                df_time['1 (VOLT)'] = volt
                 tempo[j] = df_time
                 df_fft[j] = freq
                 j = j + 1
@@ -136,9 +152,9 @@ if uploadfile:
 
         if fft:
             df_trasf_y = pd.DataFrame()
-            trasf_x = fftt(tempo[0]['time (s)'].to_numpy(), tempo[0]['volt'].to_numpy()).trasformata()[0]
+            trasf_x = fftt(tempo[0]['time (s)'].to_numpy(), tempo[0]['1 (VOLT)'].to_numpy()).trasformata()[0]
             for i in range(len(tempo)):
-                df_trasf_y[i] = fftt(tempo[i]['time (s)'].to_numpy(), tempo[i]['volt'].to_numpy()).trasformata()[1]
+                df_trasf_y[i] = fftt(tempo[i]['time (s)'].to_numpy(), tempo[i]['1 (VOLT)'].to_numpy()).trasformata()[1]
             trasf_medio = df_trasf_y.mean(axis=1)
 
         return trasf_x, trasf_medio, df_fft, tempo
@@ -249,7 +265,7 @@ if uploadfile:
 
             timei = st.slider('Select the time region', 0, len(tempo), 0)
             p2 = figure(title='time trace', x_axis_label='sec', y_axis_label='V', x_range=(0,0.1))
-            p2.line(tempo[timei]['time (s)'].to_numpy(), tempo[timei]['volt'].to_numpy(), line_width=2)
+            p2.line(tempo[timei]['time (s)'].to_numpy(), tempo[timei]['1 (VOLT)'].to_numpy(), line_width=2)
             st.bokeh_chart(p2, use_container_width=True)
             # #######################################################
 
