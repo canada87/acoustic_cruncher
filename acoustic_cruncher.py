@@ -49,10 +49,9 @@ colori = all_palettes['Category20'][20]
 
 fft = st.sidebar.radio('Calculate the spectrum:', [False, True])
 num_spec = int(st.sidebar.text_input('num of spectrum',1))
-second_filter = int(st.sidebar.text_input('second filter',700))
-second_filter2 = int(st.sidebar.text_input('second filter',810))
-
-
+second_filter = int(st.sidebar.text_input('lower filter',700))
+second_filter2 = int(st.sidebar.text_input('upper filter',810))
+normalization_area = int(st.sidebar.text_input('normalization factor',10))
 
 down_file = st.text_input('Name on download file', 'sample')
 pump = int(st.text_input('pump frquenze (Hz)',10000))
@@ -409,6 +408,15 @@ if uploadfile:
 
             for i in range(num_spec):
                 files2, files_names = load_func(uploadfile2[i])
+
+                for file2 in files2:
+                    new_cols = []
+                    for name in files2[file2].columns:
+                        if 'VOLT' in name:
+                            name = '1 (VOLT)'
+                        new_cols.append(name)
+                    files2[file2].columns = new_cols
+
                 media_vet = []
 
                 files2[0]['y'] = files2[0]['y'] - files2[0]['y'].mean()
@@ -419,7 +427,7 @@ if uploadfile:
 
                 pump_region = files2[0][files2[0]['x'] > second_filter][files2[0]['x'] < second_filter2]
                 pump_std = files2[0][files2[0]['x'] > 900][files2[0]['x'] < 1000]
-                pump_trasmitted = pump_region[pump_region['y'] > pump_std['y'].mean()+5*pump_std['y'].std()]
+                pump_trasmitted = pump_region[pump_region['y'] > pump_std['y'].mean() + np.abs(normalization_area*pump_std['y'].std())]
 
                 media_x = pump_trasmitted['x'].mean()
                 integrale = integrate.trapz(pump_trasmitted['y'], x=pump_trasmitted['x'])
