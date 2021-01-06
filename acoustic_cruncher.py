@@ -48,7 +48,7 @@ def download_file(data, filename):
 colori = all_palettes['Category20'][20]
 
 fft = st.sidebar.radio('Calculate the spectrum:', [False, True])
-num_spec = int(st.sidebar.text_input('num of spectrum',1))
+num_spec = int(st.sidebar.text_input('num of spectrum (for the absorption)',1))
 second_filter = int(st.sidebar.text_input('lower filter',700))
 second_filter2 = int(st.sidebar.text_input('upper filter',810))
 normalization_area = int(st.sidebar.text_input('normalization factor',10))
@@ -263,7 +263,7 @@ if uploadfile:
             st.bokeh_chart(p7, use_container_width=True)
 
             timei = st.slider('Select the time region', 0, len(tempo), 0)
-            p2 = figure(title='time trace', x_axis_label='sec', y_axis_label='V', x_range=(0,0.1))
+            p2 = figure(title='time trace', x_axis_label='sec', y_axis_label='V', x_range=(tempo[timei]['time (s)'][0], tempo[timei].iloc[-1]['time (s)']))
             p2.line(tempo[timei]['time (s)'].to_numpy(), tempo[timei]['1 (VOLT)'].to_numpy(), line_width=2)
             st.bokeh_chart(p2, use_container_width=True)
             # #######################################################
